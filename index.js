@@ -46,12 +46,14 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-// Get all users
-app.get('/api/users', (req, res) => {
-  User.find({}, (err, users) => {
-    if (err) return res.status(500).json({ error: err.message });
+// Get all users (converted to async/await)
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find({}, 'username _id'); // Only fetch username and _id
     res.json(users);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Add exercises to a user
@@ -84,35 +86,36 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
   }
 });
 
-// Get exercise logs
-app.get('/api/users/:_id/logs', (req, res) => {
-  const userId = req.params._id;
-  const { from, to, limit } = req.query;
+// Get exercise logs (converted to async/await)
+app.get('/api/users/:_id/logs', async (req, res) => {
+  try {
+    const userId = req.params._id;
+    const { from, to, limit } = req.query;
 
-  User.findById(userId, (err, user) => {
-    if (err || !user) return res.status(404).json({ error: 'User not found' });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     let dateFilter = {};
     if (from) dateFilter.$gte = new Date(from);
     if (to) dateFilter.$lte = new Date(to);
 
-    Exercise.find({ userId: userId, date: dateFilter })
-      .limit(parseInt(limit))
-      .exec((err, exercises) => {
-        if (err) return res.status(500).json({ error: err.message });
+    // Find exercises with date filters and limit (if provided)
+    const exercises = await Exercise.find({ userId, date: dateFilter })
+      .limit(parseInt(limit) || 0);
 
-        res.json({
-          username: user.username,
-          count: exercises.length,
-          _id: user._id,
-          log: exercises.map(exercise => ({
-            description: exercise.description,
-            duration: exercise.duration,
-            date: exercise.date.toDateString()
-          }))
-        });
-      });
-  });
+    res.json({
+      username: user.username,
+      count: exercises.length,
+      _id: user._id,
+      log: exercises.map(exercise => ({
+        description: exercise.description,
+        duration: exercise.duration,
+        date: exercise.date.toDateString()
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Start server
