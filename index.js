@@ -92,29 +92,43 @@ app.get('/api/users/:_id/logs', async (req, res) => {
     const userId = req.params._id;
     const { from, to, limit } = req.query;
 
+    // Find the user
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
+    // Create date filter
     let dateFilter = {};
     if (from) dateFilter.$gte = new Date(from);
     if (to) dateFilter.$lte = new Date(to);
 
-    // Find exercises with date filters and limit (if provided)
-    const exercises = await Exercise.find({ userId, date: dateFilter })
-      .limit(parseInt(limit) || 0);
+    // Build query object with optional date filter
+    const query = { userId };
+    if (Object.keys(dateFilter).length > 0) {
+      query.date = dateFilter;
+    }
 
+    // Find exercises, apply limit if provided
+    const exercises = await Exercise.find(query).limit(parseInt(limit) || 0);
+
+    // Build log array
+    const log = exercises.map(exercise => ({
+      description: exercise.description,
+      duration: exercise.duration,
+      date: exercise.date.toDateString()  // Use toDateString to match the required format
+    }));
+
+    // Return response
     res.json({
       username: user.username,
-      count: exercises.length,
+      count: log.length,  // Number of exercises
       _id: user._id,
-      log: exercises.map(exercise => ({
-        description: exercise.description,
-        duration: exercise.duration,
-        date: exercise.date.toDateString()
-      }))
+      log: log
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);  // Log error for debugging
+    res.status(500).json({ error: 'Error fetching logs' });
   }
 });
 
